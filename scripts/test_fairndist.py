@@ -6,7 +6,6 @@ from scipy.optimize import LinearConstraint
 from scipy.optimize import Bounds
 import pandas as pd
 from scipy.optimize import SR1
-from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 import copy
 import pickle
 import math
@@ -251,20 +250,123 @@ def test_fairness_adults(dataname, datatest, niter):
                                  np.array(test[test.sex == ' Female'].predict))
 	cm_female = cm_female / cm_female.sum(axis=1)[:, np.newaxis]
 	
-	
-	
-	
 	return cm_male, cm_female
+	
+def test_iter(dataname, datatest, niter, size):
+
+# load data
+	train = pd.read_csv(dataname)
+	
+	# clean features
+	train['workclass'] = train['workclass'].astype('category').cat.codes
+	train['education'] = train['education'].astype('category').cat.codes
+	train['occupation'] = train['occupation'].astype('category').cat.codes
+	train['relationship'] = train['relationship'].astype('category').cat.codes
+	train['marital-status'] = train['marital-status'].astype('category').cat.codes
+	train['income'] = train['income_bracket'].astype('category').cat.codes
+	train['gender'] =  train['sex'].astype('category').cat.codes
+	train['srace'] =  train['race'].astype('category').cat.codes
+	
+	feature_list = ['age', 'workclass', 'education', 'marital-status', 'occupation', 'relationship', 
+		'hours-per-week', 'capital-gain', 'education-num', 'gender', 'srace']
+		
+	# distance
+	ng = len(feature_list) - 2
+	ng = int(ng * (ng + 1) /2)
+	g = np.ones(ng)
+	
+	# test data
+	test = pd.read_csv(datatest)
+	
+	# clean features
+	test['workclass'] = test['workclass'].astype('category').cat.codes
+	test['education'] = test['education'].astype('category').cat.codes
+	test['occupation'] = test['occupation'].astype('category').cat.codes
+	test['relationship'] = test['relationship'].astype('category').cat.codes
+	test['marital-status'] = test['marital-status'].astype('category').cat.codes
+	test['income'] = test['income_bracket'].astype('category').cat.codes
+	test['gender'] =  test['sex'].astype('category').cat.codes
+	test['srace'] =  test['race'].astype('category').cat.codes
+	
+	# standardize data
+	for col in feature_list:
+		test[col] = test[col] - test[col].mean()
+		test[col] = test[col] / test[col].var() ** 0.5
+	
+	
+		
+	# standardize data
+	for col in feature_list:
+		train[col] = train[col] - train[col].mean()
+		train[col] = train[col] /train[col].var() ** 0.5
+
+	delta = 0.1
+	epsilon = 0.2
+	lag_increment = 20
+	logreg = LogisticRegression()
+	
+	trainX = np.array(train[feature_list])
+	trainY = np.array(train.income)
+	
+	results = pd.DataFrame(index= np.arange(size))
+	
+	for i in np.arange(size):
+		
+		clf_list = classifier_csc(logreg, trainX, trainY, g, delta, lag_increment, niter, epsilon)	
+		
+		# test data
+		test = pd.read_csv(datatest)
+	
+		# clean features
+		test['workclass'] = test['workclass'].astype('category').cat.codes
+		test['education'] = test['education'].astype('category').cat.codes
+		test['occupation'] = test['occupation'].astype('category').cat.codes
+		test['relationship'] = test['relationship'].astype('category').cat.codes
+		test['marital-status'] = test['marital-status'].astype('category').cat.codes
+		test['income'] = test['income_bracket'].astype('category').cat.codes
+		test['gender'] =  test['sex'].astype('category').cat.codes
+		test['srace'] =  test['race'].astype('category').cat.codes
+	
+		# standardize data
+		for col in feature_list:
+			test[col] = test[col] - test[col].mean()
+			test[col] = test[col] / test[col].var() ** 0.5
+		
+		predict = np.zeros(test.shape[0])
+		for h in clf_list:
+			learner = pickle.loads(h[1])
+			predict += learner.predict(np.array(test[feature_list]))
+		
+		predict = predict / niter
+		predict[predict > 0.5] = 1
+		predict[predict <= 0.5] = 0
+		test['predict'] = predict
+		
+		# confusion matrix 
+		cm_male = confusion_matrix(np.array(test[test.sex == ' Male'].income), 
+                               np.array(test[test.sex == ' Male'].predict))
+		cm_male = cm_male / cm_male.sum(axis=1)[:, np.newaxis]
+    
+		cm_female = confusion_matrix(np.array(test[test.sex == ' Female'].income), 
+                                 np.array(test[test.sex == ' Female'].predict))
+		cm_female = cm_female / cm_female.sum(axis=1)[:, np.newaxis]
+		results.loc[i, 'tpr_male'] = cm_male[0,0]
+		results.loc[i, 'tpr_female'] = cm_female[0,0]
+		results.loc[i, 'fpr_male'] = cm_male[1,1]
+		results.loc[i, 'fpr_female'] = cm_female[1,1]
+		
+		# accuracy
+		results.loc[i, 'accuracy'] = len(test[test.predict == test.income]) / len(test.predict)
+		print(results)
+		epsilon += 0.25
+		
+	return results
 	
 if __name__ == '__main__':
 
-	cm_male, cm_female = test_fairness_adults(sys.argv[1], sys.argv[2], 1)
-	print(cm_male)
-	print(cm_female)
-	
-	cm_male, cm_female = test_fairness_adults(sys.argv[1], sys.argv[2], 30)
-	print(cm_male)
-	print(cm_female)
+
+	results = test_iter(sys.argv[1], sys.argv[2], 30, 5)
+	results.to_csv('..\\results\\fairness_09262018.csv')
 	
 	
 	
