@@ -19,7 +19,7 @@ def to_matrix(g, k):
     pointer = 0
     for i in np.arange(k):
         for j in np.arange(i, k):
-            G[i, j] = g[pointer]
+            G[i, j] = g[pointer] 
             pointer += 1
         for j in np.arange(0, i):
             G[i, j] = G[j, i]
@@ -301,7 +301,7 @@ def test_iter(dataname, datatest, niter, size):
 		train[col] = train[col] /train[col].var() ** 0.5
 
 	delta = 0.1
-	epsilon = 0.2
+	epsilon = 0.1
 	lag_increment = 20
 	logreg = LogisticRegression()
 	
@@ -358,6 +358,68 @@ def test_iter(dataname, datatest, niter, size):
 		# accuracy
 		results.loc[i, 'accuracy'] = len(test[test.predict == test.income]) / len(test.predict)
 		print(results)
+		epsilon += 0.5
+		
+	return results
+	
+def run_classifier(train, test, feature_list, outcome, niter, size, epsilon):
+		
+	# distance
+	ng = len(feature_list) - 2
+	ng = int(ng * (ng + 1) /2)
+	g = np.ones(ng) / ng**2
+	
+	# standardize data
+	for col in feature_list:
+		test[col] = test[col] - test[col].mean()
+		test[col] = test[col] / test[col].var() ** 0.5
+		
+	# standardize data
+	for col in feature_list:
+		train[col] = train[col] - train[col].mean()
+		train[col] = train[col] /train[col].var() ** 0.5
+
+	delta = 0.0
+	epsilon = 0.2
+	lag_increment = 20
+	logreg = LogisticRegression()
+	
+	trainX = np.array(train[feature_list])
+	trainY = np.array(train[outcome])
+	
+	results = pd.DataFrame(index= np.arange(size))
+	
+	for i in np.arange(size):
+		
+		clf_list = classifier_csc(logreg, trainX, trainY, g, delta, lag_increment, niter, epsilon)	
+		
+		predict = np.zeros(test.shape[0])
+		for h in clf_list:
+			learner = pickle.loads(h[1])
+			predict += learner.predict(np.array(test[feature_list]))
+		
+		predict = predict / niter
+		
+		predict[predict > 0.0001] = 1
+		predict[predict <= 0.0001] = 0
+		test['predict'] = predict
+		
+		# confusion matrix 
+		cm_male = confusion_matrix(np.array(test[test.sex == ' Male'][outcome]), 
+                               np.array(test[test.sex == ' Male'].predict))
+		cm_male = cm_male / cm_male.sum(axis=1)[:, np.newaxis]
+    
+		cm_female = confusion_matrix(np.array(test[test.sex == ' Female'][outcome]), 
+                                 np.array(test[test.sex == ' Female'].predict))
+		cm_female = cm_female / cm_female.sum(axis=1)[:, np.newaxis]
+		results.loc[i, 'tpr_male'] = cm_male[0,0]
+		results.loc[i, 'tpr_female'] = cm_female[0,0]
+		results.loc[i, 'fpr_male'] = cm_male[1,1]
+		results.loc[i, 'fpr_female'] = cm_female[1,1]
+		
+		# accuracy
+		results.loc[i, 'accuracy'] = len(test[test.predict == test[outcome]]) / len(test.predict)
+		print(results)
 		epsilon += 0.25
 		
 	return results
@@ -365,8 +427,8 @@ def test_iter(dataname, datatest, niter, size):
 if __name__ == '__main__':
 
 
-	results = test_iter(sys.argv[1], sys.argv[2], 30, 5)
-	results.to_csv('..\\results\\fairness_09262018.csv')
+	results = test_iter(sys.argv[1], sys.argv[2], 30, 10)
+	#results.to_csv('..\\results\\fairness_09262018.csv')
 	
 	
 	
