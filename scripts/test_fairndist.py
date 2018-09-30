@@ -97,17 +97,27 @@ def best_lag(estimators_list, trainX, g, delta, epsilon, lag_increment):
         predict += learner.predict(trainX)
     
     predict = predict / len(estimators_list)
+    predict[predict > 0.5] = 1
+    predict[predict <= 0.5] = 0
     lag_mult = np.zeros((trainX.shape[0], 2))
     
     count_sample = 0
-    while count_sample < 200000:
+    while count_sample < 50000:
 
         i = np.random.randint(low=0, high=trainX.shape[0], size=1)
         j = np.random.randint(low=0, high=trainX.shape[0], size=1)
-        count_sample += 1
+        
         distance =  np.sqrt(malahanobis_distance(trainX[i, :-2], trainX[j, :-2] , g, trainX.shape[1] - 2))
+      
         distanceplus = (predict[i] - predict[j])  - math.exp(epsilon) * distance 
         distanceminus = (predict[j] - predict[i]) - math.exp(epsilon) * distance
+		
+        count_sample += 1
+		
+        if distance > 0.5:
+            continue
+			
+        
             
         if distanceplus > delta:
             if i < j: 
@@ -362,26 +372,29 @@ def test_iter(dataname, datatest, niter, size):
 		
 	return results
 	
-def run_classifier(train, test, feature_list, outcome, niter, size, epsilon):
+def run_classifier(train, test, feature_list, outcome, protected, niter, size, epsilon):
 		
 	# distance
 	ng = len(feature_list) - 2
 	ng = int(ng * (ng + 1) /2)
-	g = np.ones(ng) / ng**2
+	g = np.ones(ng)
 	
 	# standardize data
 	for col in feature_list:
-		test[col] = test[col] - test[col].mean()
-		test[col] = test[col] / test[col].var() ** 0.5
+		#test[col] = test[col] - test[col].mean()
+		#test[col] = test[col] / test[col].var() ** 0.5
+		range_col = test[col].max() - test[col].min()
+		test[col] = (test[col] - test[col].min()) / range_col
 		
 	# standardize data
 	for col in feature_list:
-		train[col] = train[col] - train[col].mean()
-		train[col] = train[col] /train[col].var() ** 0.5
+		range_col = train[col].max() - train[col].min()
+		train[col] = (train[col] - train[col].min()) / range_col
+		#train[col] = train[col] - train[col].mean()
+		#train[col] = train[col] /train[col].var() ** 0.5
 
-	delta = 0.0
-	epsilon = 0.2
-	lag_increment = 20
+	delta = 0.1
+	lag_increment = 10
 	logreg = LogisticRegression()
 	
 	trainX = np.array(train[feature_list])
@@ -400,26 +413,23 @@ def run_classifier(train, test, feature_list, outcome, niter, size, epsilon):
 		
 		predict = predict / niter
 		
-		predict[predict > 0.0001] = 1
-		predict[predict <= 0.0001] = 0
+		predict[predict > 0.5] = 1
+		predict[predict <= 0.5] = 0
 		test['predict'] = predict
 		
-		# confusion matrix 
-		cm_male = confusion_matrix(np.array(test[test.sex == ' Male'][outcome]), 
-                               np.array(test[test.sex == ' Male'].predict))
-		cm_male = cm_male / cm_male.sum(axis=1)[:, np.newaxis]
-    
-		cm_female = confusion_matrix(np.array(test[test.sex == ' Female'][outcome]), 
-                                 np.array(test[test.sex == ' Female'].predict))
-		cm_female = cm_female / cm_female.sum(axis=1)[:, np.newaxis]
-		results.loc[i, 'tpr_male'] = cm_male[0,0]
-		results.loc[i, 'tpr_female'] = cm_female[0,0]
-		results.loc[i, 'fpr_male'] = cm_male[1,1]
-		results.loc[i, 'fpr_female'] = cm_female[1,1]
-		
+		# confusion matrix for protected attributes
+		for varname in protected.keys():
+			for var in protected[varname]:
+				cm = confusion_matrix(np.array(test[test[varname] == var][outcome]), 
+                               np.array(test[test[varname] == var].predict))
+				cm = cm / cm.sum(axis=1)[:, np.newaxis]
+				
+				results.loc[i, 'tpr_%s'%var] = cm[0,0]
+				results.loc[i, 'tnr_%s'%var] = cm[1, 1]
+				
 		# accuracy
 		results.loc[i, 'accuracy'] = len(test[test.predict == test[outcome]]) / len(test.predict)
-		print(results)
+		print(results) 
 		epsilon += 0.25
 		
 	return results
