@@ -183,7 +183,7 @@ def run_classifier(train, test, feature_list, outcome, protected, niter, size, e
 		train[col] = train[col] /train[col].var() ** 0.5
 
 	delta = 0.1
-	lag_increment = 0.5
+	lag_increment = 0.25
 	
 	
 	trainX = np.array(train[feature_list])
