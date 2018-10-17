@@ -68,8 +68,6 @@ class KCons(object):
 		clusters  = np.zeros(self.X.shape[0])
 		for j in range(self.X.shape[0]):
 			x = self.X[j, :-2]
-            #bestmukey = min([(i[0], np.linalg.norm(x-mu[i[0]])) \
-              #               for i in enumerate(mu)], key=lambda t:t[1])[0]
 			bestmukey = min([(i[0], self.dist(x, mu[i[0]][:-2])) \
                              for i in enumerate(mu)], key=lambda t:t[1])[0] 
 			clusters[j] = bestmukey
@@ -109,7 +107,7 @@ class KCons(object):
 		
 		iter = 0
         
-		while (not self._has_converged()) & (iter < 20):
+		while (not self._has_converged()) & (iter < 30):
 			
 			self.oldmu = self.mu
 			self.predict_cluster()
