@@ -16,18 +16,6 @@ def create_confusion(test, protected, outcome):
     return test
 
 
-def fit(train, features, outcome, learner):
-    learner.fit(np.array(train[features]), np.array(train[outcome]).ravel())
-    return learner
-
-def predict(learner_list, test, features, outcome):
-    df_list = []
-    for learner in learner_list:
-        clf = pickle.loads(learner)
-        test["predict_%s" %(clf.name)] = clf.predict(test[features])
-        df_list.append(test[["predict_%s" %(clf.name)]])
-    return pd.concat(df_list, axis=1)
-
 def audit_tree(data, features, outcome, protected, seed=1):
 
     results = {}

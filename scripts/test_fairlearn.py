@@ -1,5 +1,6 @@
 from fairlearn import classred as red
 from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import confusion_matrix
 import numpy as np
 import pandas as pd
@@ -29,16 +30,16 @@ def run_fairlearn(train, test, feature_list, outcome, protected, constraint, eps
 	for i in np.arange(size):
 		
 		# logsitic learner
-		learner = LogisticRegression()
+		learner = DecisionTreeClassifier()
 		
-		res_tuple = red.expgrad(trainX, trainA, trainY, learner,
-                                cons=constraint, eps=epsilon)
-		res = res_tuple._asdict()
-		best_classifier = res["best_classifier"]
-		#learner.fit(trainX, trainY.ravel())
+		#res_tuple = red.expgrad(trainX, trainA, trainY, learner,
+                               # cons=constraint, eps=epsilon)
+		#res = res_tuple._asdict()
+		#best_classifier = res["best_classifier"]
+		learner.fit(trainX, trainY.ravel())
 	
-		predict = best_classifier(np.array(test[feature_list]))
-		#predict = learner.predict(np.array(test[feature_list]))
+		#predict = best_classifier(np.array(test[feature_list]))
+		predict = learner.predict(np.array(test[feature_list]))
 		predict[predict > 0.5] = 1
 		predict[predict <= 0.5] = 0
 		test['predict'] = np.array(predict)
@@ -64,7 +65,7 @@ def run_fairlearn(train, test, feature_list, outcome, protected, constraint, eps
 			var_list = protected[varname]
 			test_left = test[test[varname] == var_list[0]][feature_list + ['predict', varname]]
 			test_right = test[test[varname] == var_list[1]][feature_list + ['predict', varname]]
-			fairness_tree = bd.build_tree(test_left, test_right, 20, 1, 'predict', varname)
+			fairness_tree = bd.build_tree(test_left, test_right, 80, 1, 'predict', varname)
 			
 			
 			smax = bd.get_scores(fairness_tree[0], 1, 1)
@@ -83,9 +84,6 @@ def run_fairlearn(train, test, feature_list, outcome, protected, constraint, eps
 			#print(test_left.loc[[i for sublist in left for i in sublist]].describe())
 			#print(test_right.loc[[i for sublist in right for i in sublist]].describe())
 			
-	
-	print(results) 
-	
 	return results
 	
 	
