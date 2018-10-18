@@ -10,7 +10,7 @@ from fairlearn import moments
 pd.set_option('display.max_columns', 100)
 
 # create fake data
-N = 40000
+N = 400000
 np.random.seed(seed=5)
 data = pd.DataFrame(index=np.arange(N))
 data['protected'] = np.random.choice([0, 1], len(data))
@@ -18,13 +18,11 @@ data['x1'] = np.random.normal(size=len(data))
 data['x2'] = np.random.normal(size=len(data))
 data['x2'] = 5 * (0.0 * np.random.normal(size=len(data)) + 1) * data.protected + data.x2
 data['x3'] = np.random.normal(size=len(data))
-data['x3'] = data.x2 * data.x3 + 0 * data.protected 
-data['y'] = 2 * data.protected + 0.5 * data['x1'] + 0.000 *data['x2'] + data['x3']
+data['y'] = 2 * data.protected + 0.5 * data['x1'] + 0.5 *data['x2'] + data['x3']
 data['outcome'] = (data.y >= 0).astype('int32')
-print(data['x2'].describe())
 
 
-feature_list = ['x1', 'x2', 'x3']
+feature_list = ['x1', 'x3', 'x2']
 outcome = 'outcome'
 data['attr'] = '0'
 data.loc[data.protected == 1, 'attr'] = '1'
@@ -46,15 +44,24 @@ train['predict'] = dct.predict(np.array(train[feature_list]))
 print(len(test[test['predict'] == test[outcome]]) / len(test))
 
 # auditing confusion tree
-feature_list = ['x1', 'x3', 'x2'] 
-score = ad.audit_tree(test, feature_list, 'predict', protected)
+feature_audit = ['x1', 'x3'] 
+score, learner = ad.audit_tree(test, feature_audit, 'predict', protected)
 print(score)
 
-# auditing trees
+# audit auditor
+predicted = learner.predict(np.array(test[feature_audit]))
+test['predict2'] = predicted
+feature_audit2 = ['x1', 'x3']
+score2, learner2 = ad.audit_tree(test, feature_audit2, 'predict2', protected)
+print(score2)
 
-epsilon = 10
-cons = moments.EO()
-results = run_fairlearn(train, test, feature_list, outcome, protected, cons, epsilon, size=1)
-print(results)
+# audit auditor
+predicted = learner2.predict(np.array(test[feature_audit2]))
+test['predict3'] = predicted
+feature_audit3 = ['x3']
+score3, learner3 = ad.audit_tree(test, feature_audit3, 'predict3', protected)
+print(score3)
+
+
 
 

@@ -27,7 +27,7 @@ def audit_tree(train, test, features, outcome, protected):
         learner_list = []
 
         for attribute in attribute_list:
-            data = test[test[varname] == attribute]
+            data = train[train[varname] == attribute]
             learner = DecisionTreeClassifier()
             learner.name = attribute
             learner = fit(data, features_audit, outcome, learner)

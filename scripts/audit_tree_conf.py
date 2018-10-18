@@ -44,5 +44,5 @@ def audit_tree(data, features, outcome, protected, seed=1):
         predicted = learner.predict(testX)
         results[varname] = accuracy_score(testY, predicted)
 
-    return results
+    return results, learner
     
