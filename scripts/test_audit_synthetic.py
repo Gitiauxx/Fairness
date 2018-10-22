@@ -14,15 +14,15 @@ N = 400000
 np.random.seed(seed=5)
 data = pd.DataFrame(index=np.arange(N))
 data['protected'] = np.random.choice([0, 1], len(data))
-data['x1'] = np.random.normal(size=len(data))
+data['x1'] = np.random.normal(size=len(data)) + data.protected
 data['x2'] = np.random.normal(size=len(data))
-data['x2'] = 5 * (0.0 * np.random.normal(size=len(data)) + 1) * data.protected + data.x2
 data['x3'] = np.random.normal(size=len(data))
-data['y'] = 2 * data.protected + 0.5 * data['x1'] + 0.5 *data['x2'] + data['x3']
+data['x2'] = 0.5 * data.protected + 0.5 *data.x3 
+data['y'] =  data['x1'] + data['x2'] - 0.5 * data['protected']
 data['outcome'] = (data.y >= 0).astype('int32')
 
 
-feature_list = ['x1', 'x3', 'x2']
+feature_list = ['x1', 'x2', 'protected']
 outcome = 'outcome'
 data['attr'] = '0'
 data.loc[data.protected == 1, 'attr'] = '1'
@@ -37,30 +37,18 @@ test = data.drop(train.index)
 logreg = LogisticRegression()
 dct = DecisionTreeClassifier()
 rf = RandomForestClassifier(n_estimators=100)
-dct.fit(np.array(train[feature_list]), np.array(train[outcome].ravel()))
-test['predict'] = dct.predict(np.array(test[feature_list]))
-train['predict'] = dct.predict(np.array(train[feature_list]))
+logreg.fit(np.array(train[feature_list]), np.array(train[outcome].ravel()))
+test['predict'] = logreg.predict_proba(np.array(test[feature_list]))[:, 0]
+train['predict'] = logreg.predict_proba(np.array(train[feature_list]))[:, 0]
 
 print(len(test[test['predict'] == test[outcome]]) / len(test))
 
 # auditing confusion tree
-feature_audit = ['x1', 'x3'] 
-score, learner = ad.audit_tree(test, feature_audit, 'predict', protected)
+feature_audit = [ 'x1'] 
+score, learner, unfair_treatment = ad.audit_tree_attr(test, feature_audit, 'predict', protected)
 print(score)
-
-# audit auditor
-predicted = learner.predict(np.array(test[feature_audit]))
-test['predict2'] = predicted
-feature_audit2 = ['x1', 'x3']
-score2, learner2 = ad.audit_tree(test, feature_audit2, 'predict2', protected)
-print(score2)
-
-# audit auditor
-predicted = learner2.predict(np.array(test[feature_audit2]))
-test['predict3'] = predicted
-feature_audit3 = ['x3']
-score3, learner3 = ad.audit_tree(test, feature_audit3, 'predict3', protected)
-print(score3)
+print(unfair_treatment[unfair_treatment.attr == '0'][feature_audit + ['predict']].describe())
+print(unfair_treatment[unfair_treatment.attr == '1'][feature_audit + ['predict']].describe())
 
 
 

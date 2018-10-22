@@ -4,6 +4,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 import pickle
 from sklearn.metrics import accuracy_score
+import copy
 
 def create_confusion(test, protected, outcome):
     count = 1
@@ -45,4 +46,53 @@ def audit_tree(data, features, outcome, protected, seed=1):
         results[varname] = accuracy_score(testY, predicted)
 
     return results, learner
+
+def audit_tree_attr(data, features, outcome, protected, seed=1):
+    data = copy.deepcopy(data)
+    results = {}
+
+    for varname, attribute_list in protected.items():
+
+        # remove protected from features
+        features_audit = [feat for feat in features if feat != varname]
+
+        # confuse the outcome
+        data = create_confusion(data, protected, outcome)
+
+        # split  (70/30)
+        train = data.loc[np.random.choice(data.index, int(0.7 * len(data)), replace=False)]
+        test = data.drop(train.index)
+        
+        # test and train data
+        testX = np.array(test[features_audit])
+        testY = np.array(test[varname].astype('category').cat.codes.ravel())
+        trainX = np.array(train[features_audit])
+        trainY = np.array(train[varname].astype('category').cat.codes.ravel().ravel())
+
+        # predict attr without labels
+        learner = DecisionTreeClassifier()
+        learner = learner.fit(trainX, trainY)
+        predicted = learner.predict(testX)
+        score1 = accuracy_score(testY, predicted)
+
+        # predict attr with labels
+        features_audit.append(outcome)
+        testX = np.array(test[features_audit])
+        trainX = np.array(train[features_audit])
+    
+        learner = DecisionTreeClassifier()
+        learner = learner.fit(trainX, trainY)
+        predicted2 = learner.predict(testX)
+        score2 = accuracy_score(testY, predicted2)
+        print(score2)
+        results[varname] = score2 - score1
+
+        # identify unfair treatmenty
+        test['pred1'] = predicted
+        test['pred2'] = predicted2
+       
+        unfair_treatment = test[test.pred1 != test.pred2]
+
+    return results, learner, unfair_treatment
+    
     

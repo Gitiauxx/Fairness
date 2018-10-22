@@ -1,8 +1,14 @@
 import pandas as pd
 import numpy as np
-from fairndist_cluster import run_classifier
-from fairlearn import moments
 from test_fairlearn import run_fairlearn
+from fairlearn import moments
+from fairlearn import classred as red
+import audit_tree_conf as ad
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import confusion_matrix
+
 pd.set_option('display.max_columns', 500)
 
 # load data
@@ -25,29 +31,52 @@ for var in feature_list:
 	data = data[~np.isnan(data[var])]
 
 outcome = 'two_year_recid'
-protected = {'race': ['Caucasian', 'African-American'], 'sex': ['Male', 'Female']}
+protected = {'race': ['Caucasian', 'African-American']}
 
 # split train and test (70, 30)
 np.random.seed(seed=1)
 train = data.loc[np.random.choice(data.index, int(0.7 * len(data)))]
 test = data.drop(train.index)
-print(len(test))
 
 # classifier -- aggregate
 train['attr'] =  train['crace']
-cons = moments.EO()
-epsilon = 10
 
-results_agg = run_fairlearn(train, test, feature_list, outcome, protected, cons, epsilon, size=1)
-results_agg['method'] = 'FR_AGG'
+# logistic regression
+logreg = LogisticRegression()
+dct = DecisionTreeClassifier()
+rf = RandomForestClassifier(n_estimators=100)
+logreg.fit(np.array(train[feature_list]), np.array(train[outcome].ravel()))
+test['predict'] = logreg.predict_proba(np.array(test[feature_list]))[:, 0]
 
-# classifier -- individual
-size = 1
-niter = 5
-epsilon = 0
+# auditing learner
+feature_audit = ['age_cat',  'priors_count', 'is_violent_recid']
+score, learner, unfair_treatment = ad.audit_tree_attr(test, feature_audit, 'predict', protected)
+print(unfair_treatment[unfair_treatment.race == 'Caucasian'][feature_audit + ['predict', outcome]].describe())
+print(unfair_treatment[unfair_treatment.race == 'African-American'][feature_audit + ['predict', outcome]].describe())
+print(score)
 
-results_ind = run_classifier(train, test, feature_list, outcome, protected, niter, size, epsilon)
-results_ind['method'] = 'FR_IND'
 
-results = pd.concat([results_agg, results_ind])
-results.to_csv('..\\results\\fairness_compas_10032018_cluster.csv')
+# reduction method
+epsilon = 0.01
+constraint = moments.EO()
+trainX = train[feature_list]
+trainY = train[outcome]
+trainA = train['attr'] 
+logreg = LogisticRegression()
+res_tuple = red.expgrad(trainX, trainA, trainY, logreg,
+							cons=constraint, eps=epsilon)
+res = res_tuple._asdict()
+best_classifier = res["best_classifier"]
+test['predict'] = np.array(best_classifier(np.array(test[feature_list])))
+
+
+# auditing learner
+feature_audit = ['age_cat',  'priors_count', 'is_violent_recid']
+
+score, learner, unfair_treatment = ad.audit_tree_attr(test, feature_audit, 'predict', protected)
+print(unfair_treatment[unfair_treatment.sex == 'Caucasian'][feature_audit + ['predict', outcome]].describe())
+print(unfair_treatment[unfair_treatment.race == 'African-American'][feature_audit + ['predict', outcome]].describe())
+print(score)
+
+
+

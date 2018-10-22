@@ -2,10 +2,13 @@ import pandas as pd
 import numpy as np
 from test_fairlearn import run_fairlearn
 from fairlearn import moments
+from fairlearn import classred as red
 import audit_tree_conf as ad
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import confusion_matrix
+
 pd.set_option('display.max_columns', 100)
 
 # train and test data
@@ -36,9 +39,9 @@ test['srace'] =  test['race'].astype('category').cat.codes
 print(test.groupby('gender').size())
 
 feature_list = ['age', 'workclass', 'education', 'marital-status', 'occupation', 'relationship', 
-		'hours-per-week', 'capital-gain', 'education-num']
+		'hours-per-week', 'capital-gain', 'education-num', 'srace', 'gender']
 outcome = 'income'
-protected = {'sex': [' Male', ' Female'], 'race':[' Black', ' White']}
+protected = {'sex': [' Male', ' Female']}
 
 
 # split train and test (70, 30)
@@ -50,20 +53,68 @@ logreg = LogisticRegression()
 dct = DecisionTreeClassifier()
 rf = RandomForestClassifier(n_estimators=100)
 logreg.fit(np.array(train[feature_list]), np.array(train[outcome].ravel()))
-test['predict'] = logreg.predict(np.array(test[feature_list]))
-train['predict'] = logreg.predict(np.array(train[feature_list]))
+test['predict'] = logreg.predict_proba(np.array(test[feature_list]))[:, 0]
 
-"""
+
+# auditing learner
+feature_audit = ['age',   'education' , 'occupation', 'hours-per-week', 
+				 'workclass', 'srace']
+score, learner, unfair_treatment = ad.audit_tree_attr(test, feature_audit, 'predict', protected)
+print(unfair_treatment[unfair_treatment.sex == ' Male'][feature_audit + ['predict']].describe())
+print(unfair_treatment[unfair_treatment.sex == ' Female'][feature_audit + ['predict']].describe())
+print(score)
+
+# confusion matrix
+test.loc[test.predict < 0.5, 'predict'] = 0
+test.loc[test.predict >= 0.5, 'predict'] = 1
+cm = confusion_matrix(np.array(test[test['sex'] == ' Male'][outcome]), 
+                               np.array(test[test['sex'] == ' Male'].predict))
+cm = cm / cm.sum(axis=1)[:, np.newaxis]
+print(cm)
+
+cm = confusion_matrix(np.array(test[test['sex'] == ' Female'][outcome]), 
+                               np.array(test[test['sex'] == ' Female'].predict))
+cm = cm / cm.sum(axis=1)[:, np.newaxis]
+print(cm)
+
+
 # reduction method
 epsilon = 0.01
-cons = moments.EO()
-results_agg = run_fairlearn(train, test, feature_list, outcome, protected, cons, epsilon, size=1)
-results_agg['method'] = 'FR_AGG'
-"""
+constraint = moments.EO()
+trainX = train[feature_list]
+trainY = train[outcome]
+trainA = train['attr'] 
+logreg = LogisticRegression()
+res_tuple = red.expgrad(trainX, trainA, trainY, logreg,
+							cons=constraint, eps=epsilon)
+res = res_tuple._asdict()
+best_classifier = res["best_classifier"]
+test['predict'] = best_classifier(np.array(test[feature_list]))
 
-# auditing
-score = ad.audit_tree(test, feature_list, 'predict', protected)
+# auditing learner
+feature_audit = ['age',   'education' , 'occupation', 'hours-per-week', 
+				 'workclass', 'srace']
+score, learner, unfair_treatment = ad.audit_tree_attr(test, feature_audit, 'predict', protected)
+print(unfair_treatment[unfair_treatment.sex == ' Male'][feature_audit + ['predict']].describe())
+print(unfair_treatment[unfair_treatment.sex == ' Female'][feature_audit + ['predict']].describe())
 print(score)
+
+# confusion matrix
+test.loc[test.predict < 0.5, 'predict'] = 0
+test.loc[test.predict >= 0.5, 'predict'] = 1
+cm = confusion_matrix(np.array(test[test['sex'] == ' Male'][outcome]), 
+                               np.array(test[test['sex'] == ' Male'].predict))
+cm = cm / cm.sum(axis=1)[:, np.newaxis]
+print(cm)
+
+cm = confusion_matrix(np.array(test[test['sex'] == ' Female'][outcome]), 
+                               np.array(test[test['sex'] == ' Female'].predict))
+cm = cm / cm.sum(axis=1)[:, np.newaxis]
+print(cm)
+
+
+
+
 
 
 
