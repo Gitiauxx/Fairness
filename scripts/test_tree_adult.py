@@ -3,7 +3,7 @@ import numpy as np
 from test_fairlearn import run_fairlearn
 from fairlearn import moments
 from fairlearn import classred as red
-import audit_tree_conf as ad
+import audit_tree as ad
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
@@ -36,8 +36,6 @@ test['income'] = test['income_bracket'].astype('category').cat.codes
 test['gender'] =  test['sex'].astype('category').cat.codes
 test['srace'] =  test['race'].astype('category').cat.codes
 
-print(test.groupby('gender').size())
-
 feature_list = ['age', 'workclass', 'education', 'marital-status', 'occupation', 'relationship', 
 		'hours-per-week', 'capital-gain', 'education-num', 'srace', 'gender']
 outcome = 'income'
@@ -53,20 +51,17 @@ logreg = LogisticRegression()
 dct = DecisionTreeClassifier()
 rf = RandomForestClassifier(n_estimators=100)
 logreg.fit(np.array(train[feature_list]), np.array(train[outcome].ravel()))
-test['predict'] = logreg.predict_proba(np.array(test[feature_list]))[:, 0]
+test['predict'] = logreg.predict(np.array(test[feature_list]))
+
 
 
 # auditing learner
 feature_audit = ['age',   'education' , 'occupation', 'hours-per-week', 
 				 'workclass', 'srace']
-score, learner, unfair_treatment = ad.audit_tree_attr(test, feature_audit, 'predict', protected)
-print(unfair_treatment[unfair_treatment.sex == ' Male'][feature_audit + ['predict']].describe())
-print(unfair_treatment[unfair_treatment.sex == ' Female'][feature_audit + ['predict']].describe())
+score = ad.audit_tree(test, feature_audit, 'predict', protected)
 print(score)
 
 # confusion matrix
-test.loc[test.predict < 0.5, 'predict'] = 0
-test.loc[test.predict >= 0.5, 'predict'] = 1
 cm = confusion_matrix(np.array(test[test['sex'] == ' Male'][outcome]), 
                                np.array(test[test['sex'] == ' Male'].predict))
 cm = cm / cm.sum(axis=1)[:, np.newaxis]
@@ -90,18 +85,16 @@ res_tuple = red.expgrad(trainX, trainA, trainY, logreg,
 res = res_tuple._asdict()
 best_classifier = res["best_classifier"]
 test['predict'] = best_classifier(np.array(test[feature_list]))
+test.loc[test.predict < 0.5, 'predict'] = 0
+test.loc[test.predict >= 0.5, 'predict'] = 1
 
 # auditing learner
 feature_audit = ['age',   'education' , 'occupation', 'hours-per-week', 
 				 'workclass', 'srace']
-score, learner, unfair_treatment = ad.audit_tree_attr(test, feature_audit, 'predict', protected)
-print(unfair_treatment[unfair_treatment.sex == ' Male'][feature_audit + ['predict']].describe())
-print(unfair_treatment[unfair_treatment.sex == ' Female'][feature_audit + ['predict']].describe())
+score = ad.audit_tree(test, feature_audit, 'predict', protected)
 print(score)
 
 # confusion matrix
-test.loc[test.predict < 0.5, 'predict'] = 0
-test.loc[test.predict >= 0.5, 'predict'] = 1
 cm = confusion_matrix(np.array(test[test['sex'] == ' Male'][outcome]), 
                                np.array(test[test['sex'] == ' Male'].predict))
 cm = cm / cm.sum(axis=1)[:, np.newaxis]
