@@ -3,7 +3,7 @@ import numpy as np
 from test_fairlearn import run_fairlearn
 from fairlearn import moments
 from fairlearn import classred as red
-import audit_tree as ad
+import audit_tree_conf as ad
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier

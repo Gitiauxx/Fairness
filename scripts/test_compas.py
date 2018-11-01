@@ -3,7 +3,7 @@ import numpy as np
 from test_fairlearn import run_fairlearn
 from fairlearn import moments
 from fairlearn import classred as red
-import audit_tree as ad
+import audit_tree_conf as ad
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
@@ -52,10 +52,19 @@ test['predict'] = dct.predict(np.array(test[feature_list]))
 
 # auditing learner
 feature_audit = ['age_cat', 'priors_count', 'juv_fel_count', 'is_violent_recid']
-score = ad.audit_tree(test, feature_audit, 'predict', protected)
-#print(unfair_treatment[unfair_treatment.race == 'Caucasian'][feature_audit + ['predict', outcome]].describe())
-#print(unfair_treatment[unfair_treatment.race == 'African-American'][feature_audit + ['predict', outcome]].describe())
+score, _ = ad.audit_tree(test, feature_audit, 'predict', protected)
 print(score)
+
+feature_audit = ['age_cat']
+score, _ = ad.audit_tree(test, feature_audit, 'predict', protected)
+print(score)
+feature_audit = ['age_cat',  'priors_count']
+score, _ = ad.audit_tree(test, feature_audit, 'predict', protected)
+print(score)
+feature_audit = ['age_cat',  'priors_count', 'juv_fel_count']
+score, _ = ad.audit_tree(test, feature_audit, 'predict', protected)
+print(score)
+
 
 
 # reduction method
@@ -76,7 +85,7 @@ test.loc[test.predict > 0.5, 'predict'] = 1
 
 # auditing learner
 feature_audit = ['age_cat', 'priors_count', 'juv_fel_count', 'is_violent_recid']
-score = ad.audit_tree(test, feature_audit, 'predict', protected)
+score, _ = ad.audit_tree(test, feature_audit, 'predict', protected)
 #print(unfair_treatment[unfair_treatment.sex == 'Caucasian'][feature_audit + ['predict', outcome]].describe())
 #print(unfair_treatment[unfair_treatment.race == 'African-American'][feature_audit + ['predict', outcome]].describe())
 print(score)
