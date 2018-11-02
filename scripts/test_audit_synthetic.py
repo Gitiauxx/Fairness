@@ -10,19 +10,19 @@ import matplotlib.pyplot as plt
 pd.set_option('display.max_columns', 100)
 
 # create fake data
-N = 400000
+N = 80000
 np.random.seed(seed=1)
 data = pd.DataFrame(index=np.arange(N))
 data['protected'] = np.random.choice([0, 1], len(data))
-data['x1'] = np.random.normal(size=len(data)) + 0.25 * data.protected
+data['x1'] = np.random.normal(size=len(data)) + 0.0 * data.protected
 data['x2'] = np.random.normal(size=len(data))
-data['x3'] = np.random.normal(size=len(data), scale=0.5)
+data['x3'] = np.random.normal(size=len(data), scale=0.5) + 0.2 * data.x1
 data['x2'] = - 0.25 * data.protected + data.x2 
-data['y'] =  data['x1'] + data['x2'] + data['x3']
+data['y'] =  data['x1']  + 0.0 * data['x3']
 data['outcome'] = (data.y >= 0).astype('int32')
 print(data.groupby('protected').outcome.size())
 
-feature_list = ['x1', 'x2']
+feature_list = ['x1']
 outcome = 'outcome'
 data['attr'] = '0'
 data.loc[data.protected == 1, 'attr'] = '1'
@@ -37,8 +37,10 @@ test = data.drop(train.index)
 logreg = LogisticRegression()
 dct = DecisionTreeClassifier()
 rf = RandomForestClassifier(n_estimators=100)
-logreg.fit(np.array(train[feature_list]), np.array(train[outcome].ravel()))
-test['predict'] = logreg.predict(np.array(test[feature_list]))
+dct.fit(np.array(train[feature_list]), np.array(train[outcome].ravel()))
+test['predict'] = dct.predict(np.array(test[feature_list]))
+print(len(test[test.predict == test[outcome]])/len(test))
+print(test.groupby('protected').predict.mean())
 
 # add some individual unfairness
 results = pd.DataFrame()
@@ -48,10 +50,11 @@ for size in np.arange(10):
     test_add = test.copy()
     #test_add['protected'] = 1- test_add['protected']
     placebo = test_add.copy()
-    test_add = test_add.loc[ind]
-    test_add = test_add[test_add.protected ==0]
-    test_add['predict'] = 1- test_add['predict']
-    data = pd.concat([test_add, test])
+    test_add.loc[(test_add.index.isin(ind)) & (test_add.protected==0), 'predict'] = 1 - test_add['predict']
+    #test_add = test_add[test_add.protected ==0]
+    #test_add['predict'] = 1- test_add['predict']
+    data = test_add
+    #pd.concat([test_add, test])
 
     #test_add['protected'] = 1- test_add['protected']
     #test_add['r'] = np.random.choice([0, 1], len(test_add))

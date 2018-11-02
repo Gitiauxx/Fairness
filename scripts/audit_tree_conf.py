@@ -56,7 +56,7 @@ def audit_tree(data, features, outcome, protected, seed=1):
 
         # fit confused prediction
         learner = LogisticRegression()
-        learner = DecisionTreeClassifier(max_depth=50)
+        learner = DecisionTreeClassifier(max_depth=10)
         learner = learner.fit(trainX, trainY, sample_weight=adj/adj.sum())
         #, sample_weight=adj/adj.sum())
         predicted = learner.predict(testX)
